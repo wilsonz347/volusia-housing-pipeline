@@ -235,6 +235,13 @@ class Endpoints:
         "/CountywideZoning/MapServer/0"
     )
 
+    # U.S. Census Bureau ACS 5-Year Estimates API.
+    # Variables: median household income (B19013_001E), total population (B01003_001E)
+    # Geography: zip code tabulation areas (ZCTA) in Florida (state FIPS 12).
+    # No API key required for low-volume requests. Register at api.census.gov
+    # for a free key if you hit the 500 req/day anonymous limit.
+    CENSUS_ACS = "https://api.census.gov/data/2023/acs/acs5"
+
 
 # ---------------------------------------------------------------------------
 # Pipeline constants
