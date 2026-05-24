@@ -195,44 +195,40 @@ logger.info("Database settings loaded — host: %s | schema: %s", settings.host,
 
 class Endpoints:
     """
-    Volusia County ArcGIS FeatureServer endpoint URLs.
+    Volusia County ArcGIS service endpoint URLs.
 
-    These are the base layer URLs — the ArcGISClient appends /query
-    before making requests. Defined as class attributes (not an Enum)
-    so they can be used as plain strings without .value unwrapping.
+    All services are on maps5.vcgov.org. Confirmed live May 2026
+    via ArcGIS item metadata and direct layer inspection.
 
     Notes
     -----
-    All endpoints are on the county's public ArcGIS server at
-    maps1.vcgov.org. No authentication is required. The server
-    enforces a 1,000 record per request cap — the ArcGISClient
-    handles pagination automatically.
-
-    If any endpoint returns a 404 or ArcGIS error code 400, the
-    county may have restructured their services. Use fetch_fields()
-    on the base service URL to rediscover the layer index.
+    - PARCEL_OWNERSHIP (layer 34) is the analytical source — contains
+      owner, valuation, exemption, and sale fields.
+    - PARCELS (layer 36) contains geometry only — not used for tabular analysis.
+    - PERMITS uses MapServer (not FeatureServer) — query syntax is identical
+      but the URL path differs.
     """
 
-    # Parcel polygons with ownership, valuation, and exemption data.
-    # ~300,000 records. Primary source for the owner classification model.
-    PARCELS = (
-        "https://maps1.vcgov.org/arcgis/rest/services"
-        "/CRAPublic/Parcels_Public_WM/FeatureServer/0"
+    # Parcel ownership — owner name, mailing address, just value,
+    # homestead flag (HXFLAG), sale date/price, land use code (PC).
+    # ~300,000 records. Primary source for owner classification model.
+    PARCEL_OWNERSHIP = (
+        "https://maps5.vcgov.org/arcgis/rest/services"
+        "/Open_Data/Open_Data_3/FeatureServer/34"
     )
 
-    # Building permits from the AMANDA permit management system.
-    # Covers unincorporated Volusia County only — NOT City of Daytona Beach.
+    # AMANDA open permits — building permits from the county permit
+    # management system. Covers unincorporated Volusia County only.
     # Updated continuously. Use upsert strategy when loading.
     PERMITS = (
-        "https://maps1.vcgov.org/arcgis/rest/services"
-        "/GRMs_AMANDA_OPEN_Permits/FeatureServer/0"
+        "https://maps5.vcgov.org/arcgis/rest/services"
+        "/CurrentProjects/MapServer/1"
     )
 
-    # Countywide zoning boundaries.
-    # Supplementary source — used to enrich parcel records with zoning context.
+    # Countywide zoning boundaries — supplementary enrichment source.
     ZONING = (
-        "https://maps1.vcgov.org/arcgis/rest/services"
-        "/CountywideZoning/MapServer/0"
+        "https://maps5.vcgov.org/arcgis/rest/services"
+        "/Open_Data/Open_Data_3/FeatureServer/34"
     )
 
     # U.S. Census Bureau ACS 5-Year Estimates API.
@@ -262,7 +258,7 @@ class Pipeline:
     # Raw table names in PostgreSQL. dbt staging models reference these.
     # Changing a table name here automatically updates all downstream references
     # once the ingestion script is re-run.
-    RAW_TABLE_PARCELS: str = "raw_parcels"
+    RAW_TABLE_PARCELS: str = "raw_parcel_ownership"
     RAW_TABLE_PERMITS: str = "raw_permits"
     RAW_TABLE_TAX_ROLL: str = "raw_tax_roll"
 
