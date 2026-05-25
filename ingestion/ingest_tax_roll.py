@@ -135,18 +135,21 @@ TABLE_DEFINITIONS: list[dict] = [
         "cama_table": "VCPA_CAMA_PARCEL",
         "pg_table":   Pipeline.RAW_TABLE_CAMA_PARCEL,
         "columns": [
-            "PARID",    # join key
-            "TAXYR",    # assessment year
-            "LUC",      # land use code — residential filter in dbt
-            "APRTOT",   # total just value — primary valuation metric
-            "SASD",     # school assessed value — SOH differential
-            "NSASD",    # non-school assessed value
-            "STXBL",    # school taxable value
-            "NSTXBL",   # non-school taxable value
-            "HX_FLAG",  # homestead flag — owner classification anchor
-            "LIVUNIT",  # living units — SF vs multi-family
-            "NBHD",     # neighborhood code
-            "TAXDIST",  # tax district code
+            "PARID",        # join key
+            "TAXYR",        # assessment year
+            "LUC",          # land use code — residential filter in dbt
+            "LUC_DESC",     # land use description
+            "APRTOT",       # total just value — primary valuation metric
+            "SASD",         # school assessed value — SOH differential
+            "NSASD",        # non-school assessed value
+            "STXBL",        # school taxable value
+            "NSTXBL",       # non-school taxable value
+            "HX_FLAG",      # homestead flag — owner classification anchor
+            "LIVUNIT",      # living units — SF vs multi-family
+            "NBHD",         # neighborhood code
+            "NBHD_DESC",    # neighborhood description
+            "TAXDIST",      # tax district code
+            "TAXDIST_DESC", # tax district description
         ],
         "row_filter": None,
     },
