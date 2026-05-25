@@ -185,58 +185,33 @@ settings = DatabaseSettings(
     password=_require_env("DB_PASSWORD"),
     schema=os.getenv("DB_SCHEMA", "raw"),
 )
+CENSUS_API_KEY = _require_env("CENSUS_API_KEY")
 
 logger.info("Database settings loaded — host: %s | schema: %s", settings.host, settings.schema)
 
 
 # ---------------------------------------------------------------------------
-# ArcGIS Endpoints
+# Endpoints
 # ---------------------------------------------------------------------------
 
 class Endpoints:
     """
     Volusia County ArcGIS service endpoint URLs.
-
-    All services are on maps5.vcgov.org. Confirmed live May 2026
-    via ArcGIS item metadata and direct layer inspection.
-
-    Notes
-    -----
-    - PARCEL_OWNERSHIP (layer 34) is the analytical source — contains
-      owner, valuation, exemption, and sale fields.
-    - PARCELS (layer 36) contains geometry only — not used for tabular analysis.
-    - PERMITS uses MapServer (not FeatureServer) — query syntax is identical
-      but the URL path differs.
     """
-
-    # Parcel ownership — owner name, mailing address, just value,
-    # homestead flag (HXFLAG), sale date/price, land use code (PC).
-    # ~300,000 records. Primary source for owner classification model.
-    PARCEL_OWNERSHIP = (
-        "https://maps5.vcgov.org/arcgis/rest/services"
-        "/Open_Data/Open_Data_3/FeatureServer/34"
-    )
-
-    # AMANDA open permits — building permits from the county permit
-    # management system. Covers unincorporated Volusia County only.
-    # Updated continuously. Use upsert strategy when loading.
+    # AMANDA open permits — unincorporated Volusia County only
     PERMITS = (
         "https://maps5.vcgov.org/arcgis/rest/services"
         "/CurrentProjects/MapServer/1"
     )
 
-    # Countywide zoning boundaries — supplementary enrichment source.
-    ZONING = (
+    # Overdose analysis — ZIP-level counts 2021-2024
+    OVERDOSE_ANALYSIS = (
         "https://maps5.vcgov.org/arcgis/rest/services"
-        "/Open_Data/Open_Data_3/FeatureServer/34"
+        "/OverdoseAnalysis/MapServer/10"
     )
 
-    # U.S. Census Bureau ACS 5-Year Estimates API.
-    # Variables: median household income (B19013_001E), total population (B01003_001E)
-    # Geography: zip code tabulation areas (ZCTA) in Florida (state FIPS 12).
-    # No API key required for low-volume requests. Register at api.census.gov
-    # for a free key if you hit the 500 req/day anonymous limit.
-    CENSUS_ACS = "https://api.census.gov/data/2023/acs/acs5"
+    # Census ACS 5-year estimates — 2024 release
+    CENSUS_ACS = "https://api.census.gov/data/2024/acs/acs5"
 
 
 # ---------------------------------------------------------------------------
@@ -244,35 +219,28 @@ class Endpoints:
 # ---------------------------------------------------------------------------
 
 class Pipeline:
-    """
-    Project-wide pipeline constants.
+    # CAMA download
+    CAMA_DOWNLOAD_URL: str = "https://vcpa.vcgov.org/files/database/CAMA_DATA_EXPORT.zip"
+    CAMA_ACCDB_FILENAME: str = "CAMA_DATA_EXPORT_WEB.accdb"
+    
+    # CAMA tables
+    RAW_TABLE_CAMA_PARCEL:     str = "raw_cama_parcel"
+    RAW_TABLE_CAMA_OWNER:      str = "raw_cama_owner"
+    RAW_TABLE_CAMA_SALES:      str = "raw_cama_sales"
+    RAW_TABLE_CAMA_SITUS:      str = "raw_cama_situs"
+    RAW_TABLE_CAMA_EXEMPTIONS: str = "raw_cama_exemptions"
 
-    Centralising these here means a single edit propagates to all
-    ingestion scripts — no hunting across files for magic numbers.
-    """
+    # Other sources
+    RAW_TABLE_PERMITS:  str = "raw_permits"
+    RAW_TABLE_CENSUS:   str = "raw_census_acs"
+    RAW_TABLE_OVERDOSE: str = "raw_overdose_analysis"
 
-    # First year of historical tax roll data available from VCPA.
-    # Used to drive the multi-year backfill loop in ingest_tax_roll.py.
-    TAX_ROLL_START_YEAR: int = 2013
+    # ArcGIS client defaults
+    ARCGIS_REQUEST_DELAY: float = 0.5
+    ARCGIS_TIMEOUT:       int   = 30
+    ARCGIS_MAX_RETRIES:   int   = 3
 
-    # Raw table names in PostgreSQL. dbt staging models reference these.
-    # Changing a table name here automatically updates all downstream references
-    # once the ingestion script is re-run.
-    RAW_TABLE_PARCELS: str = "raw_parcel_ownership"
-    RAW_TABLE_PERMITS: str = "raw_permits"
-    RAW_TABLE_TAX_ROLL: str = "raw_tax_roll"
-
-    # ArcGIS client defaults. Override by passing kwargs to ArcGISClient().
-    ARCGIS_REQUEST_DELAY: float = 0.5   # seconds between paginated requests
-    ARCGIS_TIMEOUT: int = 30            # per-request timeout in seconds
-    ARCGIS_MAX_RETRIES: int = 3         # retries before raising
-
-    # pandas.to_sql() write behavior.
-    # 'append' is the default for incremental runs.
-    # Use 'replace' only during a full historical backfill.
-    DB_IF_EXISTS_APPEND: str = "append"
+    # pandas.to_sql() settings
+    DB_IF_EXISTS_APPEND:  str = "append"
     DB_IF_EXISTS_REPLACE: str = "replace"
-
-    # Chunk size for pandas.to_sql() — number of rows per INSERT batch.
-    # 500 is a safe default for Supabase free tier connection pooling.
-    DB_CHUNKSIZE: int = 500
+    DB_CHUNKSIZE:         int = 500
