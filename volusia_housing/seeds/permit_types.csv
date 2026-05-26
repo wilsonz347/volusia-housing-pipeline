@@ -1,0 +1,22 @@
+foldertype,description,category,is_residential
+AGEX,Agricultural Exemption,agricultural,false
+CAS,Casualty/Emergency Repair,residential,true
+CEZ,Code Enforcement Zoning,code enforcement,false
+COM,Commercial Building,commercial,false
+DEMO,Demolition,demolition,false
+ELEC,Electrical,mechanical/electrical/plumbing,true
+FARM,Farm Structure,agricultural,false
+FENC,Fence,residential,true
+FIRE,Fire Protection System,mechanical/electrical/plumbing,false
+GAS,Gas,mechanical/electrical/plumbing,true
+GENR,Generator,mechanical/electrical/plumbing,true
+MECH,Mechanical/HVAC,mechanical/electrical/plumbing,true
+MILE,Milestone Inspection,inspection,false
+PLUM,Plumbing,mechanical/electrical/plumbing,true
+RAS,Residential Accessory Structure,residential,true
+RES,Residential Building,residential,true
+REZ,Rezoning,zoning,false
+ROOF,Roofing,residential,true
+SIGN,Sign,commercial,false
+SOLR,Solar,mechanical/electrical/plumbing,true
+SWIM,Swimming Pool,residential,true
