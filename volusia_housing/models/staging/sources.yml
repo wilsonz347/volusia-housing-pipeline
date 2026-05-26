@@ -1,0 +1,14 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: raw
+    tables:
+      - name: raw_cama_parcel
+      - name: raw_cama_owner
+      - name: raw_cama_sales
+      - name: raw_cama_situs
+      - name: raw_cama_exemptions
+      - name: raw_permits
+      - name: raw_census_acs
+      - name: raw_overdose_analysis
