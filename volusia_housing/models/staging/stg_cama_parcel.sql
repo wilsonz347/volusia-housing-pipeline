@@ -13,8 +13,8 @@ stg_parcel as (
         CAST(nsasd AS NUMERIC) AS nonschool_assessed_value,
         CAST(stxbl AS NUMERIC) AS school_taxable_value,
         CAST(nstxbl AS NUMERIC) AS nonschool_taxable_value,
-        (hx_flag = 'Y') AS is_homestead,
-        (luc BETWEEN '0100' AND '0900') AS is_residential,
+        COALESCE(hx_flag = 'Y', false) AS is_homestead,
+        COALESCE(luc BETWEEN '0100' AND '0900', false) AS is_residential,
         CASE 
             WHEN hx_flag = 'Y'
             then CAST(aprtot AS NUMERIC) - CAST(sasd AS NUMERIC)
