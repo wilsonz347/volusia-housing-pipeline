@@ -3,6 +3,10 @@ version: 2
 sources:
   - name: raw
     schema: raw
+    freshness:
+      warn_after: {count: 8, period: day}
+      error_after: {count: 14, period: day}
+    loaded_at_field: ingested_at
     tables:
       - name: raw_cama_parcel
       - name: raw_cama_owner
