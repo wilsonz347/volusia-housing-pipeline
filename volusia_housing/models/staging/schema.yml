@@ -1,0 +1,264 @@
+version: 2
+
+models:
+  - name: stg_cama_parcel
+    description: "Cleaned parcel records from VCPA CAMA database. One row per property in Volusia County. Primary join key for all CAMA-derived models."
+    columns:
+      - name: parcel_id
+        description: "Unique parcel identifier cast to text. Join key across all CAMA tables."
+        tests:
+          - not_null
+          - unique
+      - name: assessment_year
+        description: "Assessment year — January 1 of that year. Currently 2026 for all records."
+        tests:
+          - not_null
+      - name: land_use_code
+        description: "Florida DOR land use code. 0100=Single Family, 0400=Condo, 8000=Govt Vacant."
+      - name: land_use_description
+        description: "Human-readable land use description trimmed of whitespace."
+      - name: appraised_total
+        description: "Total just value — county estimate of full market value in dollars."
+      - name: school_assessed_value
+        description: "School assessed value — capped by Save Our Homes for homestead properties."
+      - name: nonschool_assessed_value
+        description: "Non-school assessed value — used for county and city tax calculations."
+      - name: school_taxable_value
+        description: "School taxable value — assessed value minus all exemptions for school taxes."
+      - name: nonschool_taxable_value
+        description: "Non-school taxable value — assessed value minus all exemptions for non-school taxes."
+      - name: is_homestead
+        description: "True if hx_flag = Y. Owner is a permanent Florida resident living in the property. Most reliable owner-occupancy signal."
+        tests:
+          - not_null
+      - name: is_residential
+        description: "True if land_use_code is between 0100 and 0900. Used to filter to housing-only parcels in downstream models."
+        tests:
+          - not_null
+      - name: soh_differential
+        description: "Save Our Homes differential — appraised_total minus school_assessed_value. Populated for homestead properties only. Measures displacement risk: a large gap means the owner pays taxes on far below market value."
+      - name: living_units
+        description: "Number of living units on the parcel. 0 for vacant land. Coalesced from null."
+      - name: neighborhood_code
+        description: "VCPA internal neighborhood code used for valuation grouping."
+      - name: neighborhood_description
+        description: "Human-readable neighborhood name trimmed of whitespace."
+      - name: tax_district_code
+        description: "Tax district code identifying the taxing authority."
+      - name: tax_district_description
+        description: "Human-readable tax district name."
+      - name: ingested_at
+        description: "UTC timestamp of when this row was loaded by the ingestion script."
+      - name: source
+        description: "Identifies the ingestion script that loaded this row."
+
+  - name: stg_cama_owner
+    description: "Cleaned owner mailing address and entity classification. Filtered to primary owner only (ownseq=0) during ingestion."
+    columns:
+      - name: parcel_id
+        description: "Join key to stg_cama_parcel."
+        tests:
+          - not_null
+      - name: assessment_year
+        description: "Assessment year."
+        tests:
+          - not_null
+      - name: owner_sequence
+        description: "Owner sequence number. Always 0 (primary owner) after ingestion filter."
+      - name: primary_owner_name
+        description: "Primary owner name uppercased and trimmed."
+      - name: secondary_owner_name
+        description: "Secondary owner name uppercased and trimmed. Empty string if null."
+      - name: mailing_address_line1
+        description: "Mailing address line 1 trimmed."
+      - name: mailing_address_line2
+        description: "Mailing address line 2 trimmed. Empty string if null."
+      - name: mailing_state
+        description: "Two-character state code parsed from addr3 last word. Null if last word is not 2 alpha characters (handles ZIP code edge cases)."
+      - name: mailing_city
+        description: "City name parsed from addr3 — everything except the last word."
+      - name: is_foreign_owner
+        description: "True if country field is populated. Signals foreign investor ownership."
+        tests:
+          - not_null
+      - name: is_llc
+        description: "True if owner name matches LLC or corporate entity patterns using word-boundary regex. Covers LLC, INC, CORP, LP, LLP, LTD, HOLDINGS, PROPERTIES, REALTY, INVESTMENTS, CAPITAL, and more."
+        tests:
+          - not_null
+      - name: is_trust
+        description: "True if owner name matches trust patterns — TRUST, TRUSTEE, REVOCABLE, IRREVOCABLE, LIVING TRUST, FAMILY TRUST."
+        tests:
+          - not_null
+      - name: ownership_type_code
+        description: "VCPA ownership type code. TE=Tenancy in the Entirety, FE=Fee Simple, JT=Joint Tenancy."
+      - name: ownership_type_description
+        description: "Human-readable ownership type description."
+      - name: ingested_at
+        description: "UTC timestamp of ingestion."
+      - name: source
+        description: "Ingestion source identifier."
+
+  - name: stg_cama_sales
+    description: "Qualified arm's-length sales history. Already filtered to STEB=Q during ingestion. One row per qualified sale transaction."
+    columns:
+      - name: parcel_id
+        description: "Join key to stg_cama_parcel."
+        tests:
+          - not_null
+      - name: assessment_year
+        description: "Assessment year of the parcel record — not the sale year. Use sale_year for the actual sale year."
+      - name: sale_date
+        description: "Sale date parsed from MM/DD/YY HH24:MI:SS format. Null if saledt is empty or unparseable."
+      - name: sale_year
+        description: "Year extracted from sale_date for year-level trend aggregation."
+      - name: sale_price
+        description: "Sale price in dollars from documentary stamps. Arm's-length transactions only."
+      - name: sale_qualification_code
+        description: "Sale qualification code. Always Q (qualified arm's-length) after ingestion filter."
+      - name: appraised_total
+        description: "Total appraised value at the time of sale. Compare to sale_price to calculate price-to-appraisal ratio."
+      - name: price_to_appraised_ratio
+        description: "sale_price divided by appraised_total rounded to 3 decimal places. Ratios above 1.3 may indicate investor premium purchases."
+      - name: ingested_at
+        description: "UTC timestamp of ingestion."
+      - name: source
+        description: "Ingestion source identifier."
+
+  - name: stg_cama_situs
+    description: "Physical property addresses. Filtered to primary address (ownseq=1) during ingestion. One row per parcel."
+    columns:
+      - name: parcel_id
+        description: "Join key to stg_cama_parcel."
+        tests:
+          - not_null
+      - name: assessment_year
+        description: "Assessment year."
+        tests:
+          - not_null
+      - name: physical_city
+        description: "Physical city name uppercased and trimmed. Use zip_code for geographic grouping — city names are inconsistent across records."
+      - name: zip_code
+        description: "5-digit physical ZIP code. Primary geographic aggregation unit. Non-numeric characters stripped, left-padded to 5 digits. Join key to stg_census_acs and stg_overdose_analysis."
+      - name: ingested_at
+        description: "UTC timestamp of ingestion."
+      - name: source
+        description: "Ingestion source identifier."
+
+  - name: stg_cama_exemptions
+    description: "Active exemptions per parcel. One row per exemption code per parcel. Filtered to analytically relevant codes during ingestion."
+    columns:
+      - name: parcel_id
+        description: "Join key to stg_cama_parcel."
+        tests:
+          - not_null
+      - name: assessment_year
+        description: "Assessment year."
+        tests:
+          - not_null
+      - name: exemption_code
+        description: "Exemption code. 01=Standard Homestead, 02=Additional Homestead, AH=Additional Homestead 196.031, 10CAP=10% Non-Homestead Cap (investor signal), 65=Senior Low Income, TP=Total and Permanent Disability."
+        tests:
+          - not_null
+      - name: exemption_description
+        description: "Human-readable exemption description trimmed of whitespace."
+      - name: exemption_year_begin
+        description: "Year the exemption began. For homestead codes, approximates how long the owner has lived in the property — a tenure proxy used in int_owner_classification."
+      - name: ingested_at
+        description: "UTC timestamp of ingestion."
+      - name: source
+        description: "Ingestion source identifier."
+
+  - name: stg_permits
+    description: "Active AMANDA building permits in unincorporated Volusia County only. City of Daytona Beach is excluded. Loaded via upsert on permit_id."
+    columns:
+      - name: permit_id
+        description: "Unique permit identifier (folderrsn). Upsert key — always populated."
+        tests:
+          - not_null
+          - unique
+      - name: permit_type_code
+        description: "Raw permit type code from AMANDA. RES=Residential, ELEC=Electrical, PLMB=Plumbing, COM=Commercial, DEMO=Demolition."
+      - name: permit_type_description
+        description: "Human-readable permit type description from permit_types seed table."
+      - name: is_residential_permit
+        description: "True if permit type is classified as residential in the permit_types seed."
+      - name: permit_address
+        description: "Property address as stored in AMANDA foldername field."
+      - name: permit_status
+        description: "Current permit status trimmed. Examples: Issued, Plan Review, Pending, Application."
+      - name: application_date
+        description: "Permit application submitted date converted from stored timestamp."
+      - name: permit_age_days
+        description: "Days elapsed since application_date. Permits open over 180 days may be stalled."
+      - name: parcel_id_ref
+        description: "Parcel reference key (altkey cast to text). Joins to stg_cama_parcel.parcel_id. Expect approximately 80% match rate for residential permits."
+      - name: council_district
+        description: "Council district number — coarser geographic grouping than ZIP code."
+      - name: ingested_at
+        description: "UTC timestamp of ingestion."
+      - name: source
+        description: "Ingestion source identifier."
+
+  - name: stg_census_acs
+    description: "U.S. Census ACS 5-year estimates (2024 release, covering 2020-2024) for Volusia County ZIP codes. One row per ZIP. Treat as structural neighborhood context, not current-year data."
+    columns:
+      - name: zcta_name
+        description: "Full Census ZCTA name trimmed. Example: ZCTA5 32114."
+      - name: zip_code
+        description: "5-digit ZIP code. Join key to stg_cama_situs.zip_code and stg_overdose_analysis.zip_code."
+        tests:
+          - not_null
+          - unique
+      - name: population
+        description: "Total population estimate for the ZIP code."
+      - name: median_household_income
+        description: "Median household income in dollars. Null if insufficient Census sample size."
+      - name: median_gross_rent
+        description: "Median monthly gross rent including utilities. Null if insufficient sample."
+      - name: median_home_value
+        description: "Median value of owner-occupied housing units as self-reported by residents."
+      - name: owner_occupied_units
+        description: "Count of owner-occupied housing units."
+      - name: renter_occupied_units
+        description: "Count of renter-occupied housing units."
+      - name: occupied_units
+        description: "Total occupied housing units."
+      - name: vacant_units
+        description: "Total vacant housing units."
+      - name: acs_year
+        description: "ACS release year. 2024 = 2020-2024 5-year average."
+      - name: renter_occupied_ratio
+        description: "renter_occupied_units divided by occupied_units. High ratio indicates rental-dominant neighborhood."
+      - name: vacant_unit_ratio
+        description: "vacant_units divided by total housing stock. High vacancy combined with high investor ownership is a displacement indicator."
+      - name: rent_to_income_ratio
+        description: "Annual rent (median_gross_rent * 12) divided by median_household_income. Above 0.30 indicates rent burden. Above 0.50 is severe burden."
+      - name: ingested_at
+        description: "UTC timestamp of ingestion."
+      - name: source
+        description: "Ingestion source identifier."
+
+  - name: stg_overdose_analysis
+    description: "ZIP-level overdose counts 2021-2024 unpivoted to one row per ZIP per year. Source field opiod corrected to opioid in column names."
+    columns:
+      - name: zip_code
+        description: "5-digit ZIP code. Join key to stg_cama_situs and stg_census_acs."
+        tests:
+          - not_null
+      - name: po_name
+        description: "Post office name for the ZIP code. Example: DAYTONA BEACH, PORT ORANGE."
+      - name: overdose_year
+        description: "Year of the overdose count — 2021, 2022, 2023, or 2024."
+        tests:
+          - not_null
+          - accepted_values:
+              values: [2021, 2022, 2023, 2024]
+              quote: false
+      - name: total_overdoses
+        description: "Total overdoses all substances for this ZIP and year."
+      - name: opioid_overdoses
+        description: "Opioid-specific overdoses for this ZIP and year. Source system misspells as opiod — corrected in staging."
+      - name: ingested_at
+        description: "UTC timestamp of ingestion."
+      - name: source
+        description: "Ingestion source identifier."
