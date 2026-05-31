@@ -1,0 +1,24 @@
+version: 2
+
+models:
+  - name: int_owner_classification
+    description: "Parcel-level owner classification joining parcel, owner, and exemptions. One row per parcel."
+    columns:
+      - name: parcel_id
+        tests:
+          - not_null
+          - unique
+      - name: owner_classification
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [owner_occupied, out_of_state_investor, foreign_investor, fl_corporate_investor, trust, local_investor, unclassified]
+                quote: true
+      - name: classification_confidence
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [high, medium, low]
+                quote: true
