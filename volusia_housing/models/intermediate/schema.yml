@@ -22,3 +22,32 @@ models:
               arguments:
                 values: [high, medium, low]
                 quote: true
+
+  - name: int_value_trends
+    description: "Parcel-level value and sales data with ZIP code. One row per parcel."
+    columns:
+      - name: parcel_id
+        tests:
+          - not_null
+          - unique
+      - name: soh_benefit_bucket
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [not_homestead, no_benefit_yet, under_25k, 25k_to_75k, 75k_to_150k, over_150k]
+                quote: true
+
+  - name: int_overdose_by_zip
+    description: "ZIP-level overdose rates with Census population context. One row per ZIP per year."
+    columns:
+      - name: zip_code
+        tests:
+          - not_null
+      - name: overdose_year
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [2021, 2022, 2023, 2024]
+                quote: false
