@@ -13,12 +13,7 @@ stg_sales as (
     select
         CAST(parid AS TEXT)                                                    AS parcel_id,
         taxyr                                                                  AS assessment_year,
-        CAST(sale_ts_raw AS DATE)                                                      AS sale_date_raw,
-        CASE
-            WHEN EXTRACT(YEAR FROM sale_ts_raw) > 2026
-            THEN CAST(sale_ts_raw - INTERVAL '100 years' AS DATE)
-            ELSE CAST(sale_ts_raw AS DATE)
-        END                                                                    AS sale_date,
+        CAST(sale_ts_raw AS DATE)                                              AS sale_date,
         CAST(price AS NUMERIC)                                                 AS sale_price,
         steb                                                                   AS sale_qualification_code,
         CAST(aprtot AS NUMERIC)                                                AS appraised_total,
@@ -34,8 +29,9 @@ filtered as (
         *,
         EXTRACT(YEAR FROM sale_date) AS sale_year
     from stg_sales
-    where EXTRACT(YEAR FROM sale_date) BETWEEN 1970 AND 2026
-    and price_to_appraised_ratio BETWEEN 0.1 AND 10
 )
 
-select * from filtered
+select *
+from filtered
+where sale_year BETWEEN 1970 AND 2026
+and price_to_appraised_ratio BETWEEN 0.1 AND 10
