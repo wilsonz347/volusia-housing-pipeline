@@ -7,7 +7,11 @@ stg_situs as (
         CAST(parid AS TEXT) AS parcel_id,
         taxyr AS assessment_year,
         UPPER(TRIM(cityname)) AS physical_city,
-        LEFT(REGEXP_REPLACE(TRIM(zip1), '[^0-9]', '', 'g'), 5) AS zip_code,
+        case 
+            when left(regexp_replace(trim(zip1), '[^0-9]', '', 'g'), 5) ~ '^\d{5}$'
+            then left(regexp_replace(trim(zip1), '[^0-9]', '', 'g'), 5)
+            else null
+        end as zip_code,
         ingested_at,
         source
     FROM source
