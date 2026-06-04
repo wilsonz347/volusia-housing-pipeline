@@ -1,0 +1,25 @@
+version: 2
+
+models:
+  - name: mart_housing_pressure
+    description: "ZIP-level housing pressure metrics. One row per ZIP code with 50+ parcels. Primary PowerBI source."
+    columns:
+      - name: zip_code
+        description: "5-digit ZIP code. Primary key — one row per ZIP."
+        tests:
+          - not_null
+          - unique
+      - name: residential_parcels
+        description: "Total residential parcels in ZIP."
+        tests:
+          - not_null
+      - name: high_conf_investor_pct
+        description: "% of residential parcels owned by confirmed out-of-state or foreign investors. High confidence only."
+      - name: all_investor_pct
+        description: "% owned by all investor types including FL corporate and trust. High + medium confidence."
+      - name: owner_occupied_pct
+        description: "% of residential parcels with active homestead exemption."
+      - name: has_acs_data
+        description: "True if Census ACS data exists for this ZIP. ZIPs without ACS data have null income and rent fields."
+        tests:
+          - not_null
