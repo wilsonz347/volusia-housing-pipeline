@@ -23,3 +23,20 @@ models:
         description: "True if Census ACS data exists for this ZIP. ZIPs without ACS data have null income and rent fields."
         tests:
           - not_null
+
+  - name: mart_permit_velocity
+    description: "Council district-level permit processing metrics. One row per council district. Covers unincorporated Volusia County only — excludes City of Daytona Beach."
+    columns:
+      - name: council_district
+        description: "Council district identifier 1-5. Primary key."
+        tests:
+          - not_null
+          - unique
+      - name: total_permits
+        description: "Total active open permits in the district."
+        tests:
+          - not_null
+      - name: stalled_pct
+        description: "% of permits open longer than 180 days. High values indicate processing bottlenecks."
+      - name: median_permit_age_days
+        description: "Median days since permit application. Processing speed proxy."
