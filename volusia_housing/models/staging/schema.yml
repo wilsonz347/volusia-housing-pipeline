@@ -252,8 +252,9 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: [2021, 2022, 2023, 2024]
-              quote: false
+              arguments:
+                values: [2021, 2022, 2023, 2024]
+                quote: false
       - name: total_overdoses
         description: "Total overdoses all substances for this ZIP and year."
       - name: opioid_overdoses
