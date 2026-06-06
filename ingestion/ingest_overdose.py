@@ -146,8 +146,12 @@ def run(dry_run: bool = False) -> None:
     df = normalize_column_names(df)
     df = add_ingestion_metadata(df)
 
-    # Log the full dataset — it's small enough to print entirely
-    logger.info("Full dataset:\n%s", df.to_string())
+    logger.info(
+        "Prepared dataset — rows=%s | cols=%s | ZIPs=%s",
+        len(df),
+        len(df.columns),
+        df["zip_code"].nunique()
+    )
 
     if dry_run:
         logger.info("DRY RUN — skipping database write.")

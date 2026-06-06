@@ -222,7 +222,7 @@ def run(dry_run: bool = False) -> None:
     df = add_ingestion_metadata(df)
 
     logger.info("Data prepared — %s rows x %s columns", len(df), len(df.columns))
-    logger.info("\n%s", df[["zip_code", "median_household_income", "median_gross_rent", "median_home_value"]].to_string())
+    logger.info("ZIPs loaded: %s", ", ".join(df["zip_code"].tolist()))
 
     if dry_run:
         logger.info("DRY RUN — skipping database write.")
