@@ -45,9 +45,10 @@ https://floridarevenue.com/property/Pages/DataPortal_RequestAssessmentRollGISDat
 
 Load strategy
 -------------
-REPLACE — drops and recreates each table on every run. The CAMA
-database is a full current-state snapshot with no incremental updates.
-Each weekly run is authoritative for the current assessment year.
+TRUNCATE + INSERT.
+
+The CAMA database is a full current-state snapshot with no incremental updates.
+Each weekly run replaces all rows for the current assessment year.
 
 Prerequisites
 -------------
@@ -74,7 +75,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, inspect
 
 from config import Pipeline, settings
 
@@ -418,7 +419,7 @@ def normalize_column_names(df: pd.DataFrame) -> pd.DataFrame:
 
 def load_table(df: pd.DataFrame, pg_table: str, engine) -> None:
     """
-    Load a DataFrame into PostgreSQL using REPLACE strategy.
+    Load a DataFrame into PostgreSQL using TRUNCATE + INSERT strategy.
 
     Parameters
     ----------
@@ -429,30 +430,69 @@ def load_table(df: pd.DataFrame, pg_table: str, engine) -> None:
     engine : sqlalchemy.Engine
         Active SQLAlchemy engine.
     """
+        
     logger.info(
         "Loading %s rows into %s.%s",
-        f"{len(df):,}", settings.schema, pg_table,
+        f"{len(df):,}",
+        settings.schema,
+        pg_table,
     )
+
+    inspector = inspect(engine)
+
+    exists = inspector.has_table(
+        pg_table,
+        schema=settings.schema,
+    )
+
+    if exists:
+        logger.info(
+            "Table exists — truncating %s.%s",
+            settings.schema,
+            pg_table,
+        )
+
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    f"TRUNCATE TABLE {settings.schema}.{pg_table}"
+                )
+            )
+
+        if_exists = "append"
+
+    else:
+        logger.info(
+            "Table does not exist — creating %s.%s",
+            settings.schema,
+            pg_table,
+        )
+
+        if_exists = "replace"
 
     df.to_sql(
         name=pg_table,
         con=engine,
         schema=settings.schema,
-        if_exists=Pipeline.DB_IF_EXISTS_REPLACE,
+        if_exists=if_exists,
         index=False,
         chunksize=Pipeline.DB_CHUNKSIZE,
         method="multi",
     )
 
     with engine.connect() as conn:
-        result = conn.execute(
-            text(f"SELECT COUNT(*) FROM {settings.schema}.{pg_table}")
-        )
-        rows_loaded = result.scalar()
+        rows_loaded = conn.execute(
+            text(
+                f"SELECT COUNT(*) "
+                f"FROM {settings.schema}.{pg_table}"
+            )
+        ).scalar()
 
     logger.info(
         "Verified %s rows in %s.%s",
-        f"{rows_loaded:,}", settings.schema, pg_table,
+        f"{rows_loaded:,}",
+        settings.schema,
+        pg_table,
     )
 
 

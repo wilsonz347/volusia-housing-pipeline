@@ -50,8 +50,12 @@ Volusia County ZIPs covered:
 
 Load strategy
 -------------
-REPLACE — ACS 5-year estimates update annually (December release).
-Each run replaces the previous year's data entirely.
+TRUNCATE + INSERT.
+
+ACS 5-year estimates update annually (December release).
+The source is a full snapshot, so each run truncates the
+existing table and reloads all rows. The table itself is
+preserved to avoid breaking downstream views.
 
 Run modes
 ---------
@@ -66,7 +70,7 @@ from datetime import datetime, timezone
 
 import pandas as pd
 import requests
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, inspect
 
 from config import CENSUS_API_KEY, Endpoints, Pipeline, settings
 
@@ -233,11 +237,44 @@ def run(dry_run: bool = False) -> None:
         conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {settings.schema}"))
         conn.commit()
 
+    inspector = inspect(engine)
+
+    exists = inspector.has_table(
+        RAW_TABLE,
+        schema=settings.schema,
+    )
+
+    if exists:
+        logger.info(
+            "Table exists — truncating %s.%s",
+            settings.schema,
+            RAW_TABLE,
+        )
+
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    f"TRUNCATE TABLE "
+                    f"{settings.schema}.{RAW_TABLE}"
+                )
+            )
+
+        if_exists = "append"
+
+    else:
+        logger.info(
+            "Table does not exist — creating %s.%s",
+            settings.schema,
+            RAW_TABLE,
+        )
+
+        if_exists = "replace"
+
     df.to_sql(
         name=RAW_TABLE,
         con=engine,
         schema=settings.schema,
-        if_exists=Pipeline.DB_IF_EXISTS_REPLACE,
+        if_exists=if_exists,
         index=False,
         chunksize=Pipeline.DB_CHUNKSIZE,
         method="multi",

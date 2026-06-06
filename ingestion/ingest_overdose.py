@@ -40,7 +40,12 @@ Dropped: OBJECTID, Shape.STArea(), Shape.STLength()
 
 Load strategy
 -------------
-REPLACE — small static dataset (~30 rows). Full reload each run.
+TRUNCATE + INSERT — small static dataset (~30 rows).
+
+Each run fully reloads the table. The table is preserved
+to avoid breaking downstream dbt views.
+
+First run creates the table. Subsequent runs truncate and reload.
 
 Run modes
 ---------
@@ -54,7 +59,7 @@ import sys
 from datetime import datetime, timezone
 
 import pandas as pd
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, inspect
 
 from arcgis_client import ArcGISClient
 from config import Endpoints, Pipeline, settings
@@ -157,11 +162,44 @@ def run(dry_run: bool = False) -> None:
         conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {settings.schema}"))
         conn.commit()
 
+    inspector = inspect(engine)
+
+    exists = inspector.has_table(
+        Pipeline.RAW_TABLE_OVERDOSE,
+        schema=settings.schema,
+    )
+
+    if exists:
+        logger.info(
+            "Table exists — truncating %s.%s",
+            settings.schema,
+            Pipeline.RAW_TABLE_OVERDOSE,
+        )
+
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    f"TRUNCATE TABLE "
+                    f"{settings.schema}.{Pipeline.RAW_TABLE_OVERDOSE}"
+                )
+            )
+
+        if_exists = "append"
+
+    else:
+        logger.info(
+            "Table does not exist — creating %s.%s",
+            settings.schema,
+            Pipeline.RAW_TABLE_OVERDOSE,
+        )
+
+        if_exists = "replace"
+
     df.to_sql(
         name=Pipeline.RAW_TABLE_OVERDOSE,
         con=engine,
         schema=settings.schema,
-        if_exists=Pipeline.DB_IF_EXISTS_REPLACE,
+        if_exists=if_exists,
         index=False,
         chunksize=Pipeline.DB_CHUNKSIZE,
         method="multi",
