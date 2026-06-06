@@ -2,12 +2,21 @@ name: Volusia Housing Pipeline
 
 on:
   schedule:
-    - cron: '0 6 * * 1'   # Every Monday at 06:00 UTC
+    - cron: '0 6 * * 1' # Every Monday at 06:00 UTC
   workflow_dispatch:
 
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
+
+    env:
+      DB_HOST: ${{ secrets.DB_HOST }}
+      DB_PORT: ${{ secrets.DB_PORT }}
+      DB_NAME: ${{ secrets.DB_NAME }}
+      DB_USER: ${{ secrets.DB_USER }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      DB_SCHEMA: ${{ secrets.DB_SCHEMA }}
+      CENSUS_API_KEY: ${{ secrets.CENSUS_API_KEY }}
 
     steps:
       - name: Checkout repository
@@ -16,53 +25,28 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
-      - name: Install mdbtools
-        run: sudo apt-get install -y mdbtools
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mdbtools
 
       - name: Install Python dependencies
-        run: pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Run ingestion — tax roll
-        env:
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_PORT: ${{ secrets.DB_PORT }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_SCHEMA: ${{ secrets.DB_SCHEMA }}
         run: python ingestion/ingest_tax_roll.py
 
       - name: Run ingestion — permits
-        env:
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_PORT: ${{ secrets.DB_PORT }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_SCHEMA: ${{ secrets.DB_SCHEMA }}
         run: python ingestion/ingest_permits.py
 
       - name: Run ingestion — census
-        env:
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_PORT: ${{ secrets.DB_PORT }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_SCHEMA: ${{ secrets.DB_SCHEMA }}
-          CENSUS_API_KEY: ${{ secrets.CENSUS_API_KEY }}
         run: python ingestion/ingest_census.py
 
       - name: Run ingestion — overdose
-        env:
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_PORT: ${{ secrets.DB_PORT }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_SCHEMA: ${{ secrets.DB_SCHEMA }}
         run: python ingestion/ingest_overdose.py
 
       - name: Set up dbt profile
@@ -74,15 +58,19 @@ jobs:
             outputs:
               prod:
                 type: postgres
-                host: ${{ secrets.DB_HOST }}
-                port: ${{ secrets.DB_PORT }}
-                user: ${{ secrets.DB_USER }}
-                password: ${{ secrets.DB_PASSWORD }}
-                dbname: ${{ secrets.DB_NAME }}
+                host: ${DB_HOST}
+                port: ${DB_PORT}
+                user: ${DB_USER}
+                password: ${DB_PASSWORD}
+                dbname: ${DB_NAME}
                 schema: dev
                 threads: 4
                 sslmode: require
           EOF
+
+      - name: Install dbt dependencies
+        working-directory: volusia_housing
+        run: dbt deps
 
       - name: Run dbt models
         working-directory: volusia_housing
