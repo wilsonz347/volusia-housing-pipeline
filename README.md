@@ -16,18 +16,17 @@ An end-to-end data engineering pipeline that ingests, models, and visualizes pub
 - [Ingestion Layer](#ingestion-layer)
 - [Transformation Layer](#transformation-layer)
 - [Orchestration](#orchestration)
-- [Metrics](#metrics)
 - [Known Limitations](#known-limitations)
 
 ---
 
 ## Project Overview
 
-Daytona Beach has one of the highest crime rates in Florida and a tourism-driven economy where absentee investor purchasing has accelerated since 2020. The Volusia County Property Appraiser, county GIS systems, U.S. Census Bureau, and county health agencies each publish data that — in isolation — answers partial questions. This pipeline joins them into a unified analytical layer that no single agency currently publishes.
+This project integrates property assessment, permitting, demographic, and public health datasets to measure housing displacement pressure across Volusia County, Florida. The primary focus is identifying concentrations of absentee investor ownership and their relationship to affordability and neighborhood outcomes.
 
 **Intended consumers:** One Voice for Volusia, Daytona Beach News-Journal, local housing nonprofits, and city planners.
 
-**Stack:** Python · PostgreSQL (Supabase) · dbt Core · GitHub Actions · PowerBI
+**Stack:** Python · PostgreSQL (Supabase) · dbt Core · GitHub Actions · Data Studio
 
 ---
 
@@ -35,14 +34,14 @@ Daytona Beach has one of the highest crime rates in Florida and a tourism-driven
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  INGESTION (Python)                                          │
-│                                                              │
+│  INGESTION (Python)                                         │
+│                                                             │
 │  VCPA CAMA .accdb  →  raw_cama_parcel                       │
-│                    →  raw_cama_owner                         │
-│                    →  raw_cama_sales                         │
-│                    →  raw_cama_situs                         │
-│                    →  raw_cama_exemptions                    │
-│                                                              │
+│                    →  raw_cama_owner                        │
+│                    →  raw_cama_sales                        │
+│                    →  raw_cama_situs                        │
+│                    →  raw_cama_exemptions                   │
+│                                                             │
 │  ArcGIS MapServer  →  raw_permits                           │
 │  ArcGIS MapServer  →  raw_overdose_analysis                 │
 │  Census ACS API    →  raw_census_acs                        │
@@ -50,29 +49,29 @@ Daytona Beach has one of the highest crime rates in Florida and a tourism-driven
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  STORAGE (PostgreSQL — Supabase)                             │
+│  STORAGE (PostgreSQL — Supabase)                            │
 │  Schema: raw  →  staging  →  intermediate  →  marts         │
 └───────────────────────────┬─────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  TRANSFORMATION (dbt Core)                                   │
-│                                                              │
+│  TRANSFORMATION (dbt Core)                                  │
+│                                                             │
 │  staging/        — clean and standardize each source        │
 │  intermediate/   — join, enrich, classify                   │
 │  marts/          — ZIP-level analytical outputs             │
 └───────────────────────────┬─────────────────────────────────┘
                             │
                             ▼
-┌─────────────────────────────────────────────────────────────┐
-│  ORCHESTRATION (GitHub Actions)                              │
-│  Weekly cron → ingest → dbt run → dbt test → PowerBI refresh│
-└───────────────────────────┬─────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────┐
+│  ORCHESTRATION (GitHub Actions)                                   │
+│  Weekly cron → ingest → dbt run → dbt test → Data Studio refresh  │
+└───────────────────────────┬───────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  SERVING (PowerBI Service)                                   │
-│  Public dashboard — ZIP-level housing pressure metrics       │
+│  SERVING (Data Studio Service)                              │
+│  Public dashboard — ZIP-level housing pressure metrics      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -98,35 +97,28 @@ Daytona Beach has one of the highest crime rates in Florida and a tourism-driven
 ---
 
 ## Repository Structure
-
 ```
 volusia-housing-pipeline/
-├── .env                          # credentials — never committed
-├── .gitignore
-├── requirements.txt
-│
 ├── ingestion/
-│   ├── config.py                 # env vars, endpoints, pipeline constants
-│   ├── arcgis_client.py          # paginated ArcGIS FeatureServer/MapServer client
-│   ├── ingest_tax_roll.py        # CAMA .accdb download, convert, load (5 tables)
-│   ├── ingest_permits.py         # AMANDA open permits via ArcGIS
-│   ├── ingest_census.py          # Census ACS 5-year estimates
-│   └── ingest_overdose.py        # VSO overdose analysis via ArcGIS
-│
-├── volusia_housing/              # dbt project
+│   ├── config.py                  # DB settings, endpoints, pipeline constants
+│   ├── arcgis_client.py           # Paginated ArcGIS FeatureServer/MapServer client
+│   ├── ingest_tax_roll.py         # CAMA .accdb download → 5 PostgreSQL tables
+│   ├── ingest_permits.py          # AMANDA permits via ArcGIS (UPSERT on folderrsn)
+│   ├── ingest_census.py           # Census ACS 5-year via api.census.gov
+│   └── ingest_overdose.py         # VSO overdose analysis via ArcGIS
+├── volusia_housing/               # dbt project
 │   ├── dbt_project.yml
+│   ├── macros/
+│   │   └── generate_schema_name.sql   # Prevents schema prefix doubling
 │   ├── seeds/
-│   │   ├── land_use_codes.csv    # LUC code lookup table
-│   │   └── exemption_codes.csv   # exemption code lookup table
-│   ├── models/
-│   │   ├── staging/              # stg_cama_parcel, stg_cama_owner, etc.
-│   │   ├── intermediate/         # int_owner_classification, int_value_trends
-│   │   └── marts/                # mart_housing_pressure, mart_permit_velocity
-│   └── tests/                    # custom data quality tests
-│
+│   │   └── permit_types.csv       # Permit type lookup
+│   └── models/
+│       ├── staging/
+│       ├── intermediate/
+│       └── marts/
 └── .github/
     └── workflows/
-        └── pipeline.yml          # weekly cron orchestration
+        └── pipeline.yml           # Weekly CI/CD
 ```
 
 ---
@@ -215,21 +207,6 @@ python ingest_census.py          # ~5 sec
 python ingest_overdose.py        # ~5 sec
 ```
 
-**Load strategies:**
-
-| Script | Strategy | Reason |
-|---|---|---|
-| `ingest_tax_roll.py` | REPLACE | Full current-state snapshot each run |
-| `ingest_permits.py` | UPSERT on `folderrsn` | Permits change status between runs |
-| `ingest_census.py` | REPLACE | Annual release replaces prior year |
-| `ingest_overdose.py` | REPLACE | Small static dataset |
-
-**Using a local CAMA file** (skip re-download):
-
-```bash
-python ingest_tax_roll.py --accdb-path /path/to/CAMA_DATA_EXPORT_WEB.accdb
-```
-
 ---
 
 ## Transformation Layer
@@ -241,9 +218,12 @@ dbt models are organized in three layers:
 **Intermediate** (`models/intermediate/`) — cross-source joins and derived fields. Key models:
 
 - `int_owner_classification` — classifies each parcel owner as `owner_occupied`, `out_of_state_investor`, `foreign_investor`, `corporate_investor_fl`, `trust`, `local_investor_individual`, or `unclassified`. Uses homestead flag, mailing state parsed from `addr3`, and LLC keyword matching on owner name.
+
 - `int_value_trends` — computes SOH differential (just value minus assessed value) per parcel. Quantifies displacement risk for long-term homeowners.
 
-**Marts** (`models/marts/`) — final analytical outputs consumed by PowerBI. Materialized as tables.
+- `int_overdose_by_zip` — joins overdose incident data with ACS demographic data at the ZIP code level. Adds population-normalized metrics including `overdose_rate_per_1000` and `opioid_rate_per_1000`, along with socioeconomic context such as median household income, renter occupancy ratio, and rent burden. Serves as the analytical foundation for examining relationships between housing conditions, investor activity, and overdose prevalence.
+
+**Marts** (`models/marts/`) — final analytical outputs consumed by Data Studio. Materialized as tables.
 
 - `mart_housing_pressure` — by ZIP: investor ownership %, SOH differential, median just value, permit activity rate, overdose rate, Census income/rent context.
 - `mart_permit_velocity` — by neighborhood: median permit approval time, permit type breakdown.
@@ -266,45 +246,14 @@ dbt docs serve    # view in browser
 GitHub Actions runs the full pipeline on a weekly cron schedule every Monday at 06:00 UTC.
 
 ```
-ingest (all four scripts) → dbt run → dbt test → PowerBI dataset refresh
+ingest (all four scripts) → dbt run → dbt test → Data Studio dataset refresh
 ```
-
-The pipeline fails loudly — if any dbt test fails, downstream steps do not execute and the PowerBI report is not refreshed with potentially bad data.
 
 **GitHub Secrets required:**
 
 ```
 DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, CENSUS_API_KEY
 ```
-
----
-
-## Metrics
-
-**Pipeline health**
-
-| Metric | Target | How measured |
-|---|---|---|
-| dbt test pass rate | 100% | dbt test output per run |
-| Data freshness | < 8 days | dbt source freshness test |
-| Row count delta | < 5% week-over-week | logged in ingestion scripts |
-
-**Analytical output**
-
-| Metric | Description |
-|---|---|
-| Investor ownership % by ZIP | % of residential parcels classified as non-owner-occupied |
-| SOH differential | Median gap between just value and assessed value for homestead properties |
-| Overdose rate per ZIP | Total and opioid overdoses per 1,000 residents, 2021-2024 |
-| Permit approval velocity | Median days from application to issuance by neighborhood |
-
-**Impact**
-
-| Metric | How tracked |
-|---|---|
-| Monthly active users | PowerBI Service report views |
-| Organizational citations | Manual log — tracked in `docs/citations.md` |
-| Stakeholder-requested features | GitHub issues labeled `stakeholder-request` |
 
 ---
 
