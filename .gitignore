@@ -222,3 +222,6 @@ __marimo__/
 
 dbt_packages/
 logs/
+
+# reference files
+docs/volusia-project-reference.*
