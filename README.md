@@ -1,6 +1,6 @@
 # Volusia County Housing Intelligence Pipeline
 
-An end-to-end data engineering pipeline that ingests, models, and visualizes public government data to analyze housing displacement pressure in Volusia County, Florida.
+An end-to-end data engineering pipeline that ingests, models, and analyzes public housing, permitting, demographic, and health data to measure housing displacement pressure in Volusia County, Florida.
 
 **Core question:** Where is absentee investor ownership of residential property accelerating — and what measurable pressure is it exerting on housing affordability for long-term residents?
 
@@ -9,6 +9,8 @@ An end-to-end data engineering pipeline that ingests, models, and visualizes pub
 ## Table of Contents
 
 - [Project Overview](#project-overview)
+- [Key Findings](#key-findings)
+- [Dashboard Preview](#dashboard-preview)
 - [Architecture](#architecture)
 - [Data Sources](#data-sources)
 - [Repository Structure](#repository-structure)
@@ -16,6 +18,7 @@ An end-to-end data engineering pipeline that ingests, models, and visualizes pub
 - [Ingestion Layer](#ingestion-layer)
 - [Transformation Layer](#transformation-layer)
 - [Orchestration](#orchestration)
+- [Presentation](#presentation)
 - [Known Limitations](#known-limitations)
 
 ---
@@ -26,7 +29,27 @@ This project integrates property assessment, permitting, demographic, and public
 
 **Intended consumers:** One Voice for Volusia, Daytona Beach News-Journal, local housing nonprofits, and city planners.
 
-**Stack:** Python · PostgreSQL (Supabase) · dbt Core · GitHub Actions · Data Studio
+**Stack:** Python · PostgreSQL (Supabase) · dbt · GitHub Actions · HTML/CSS/JS
+
+---
+
+## Key Findings
+
+- 16.4% of residential parcels are investor-owned countywide (parcel-weighted)
+- 9.8% are high-confidence absentee owners (out-of-state or foreign investors)
+- 65.3% of residential parcels are owner-occupied based on homestead exemption status
+- ZIP 32118 has the highest investor concentration (40.6%) and the highest composite housing pressure score (68.5)
+- ZIP 32169 has the largest median Save Our Homes differential ($201K), indicating the highest potential displacement exposure if ownership changes
+- Coastal ZIP codes generally exhibit higher investor concentration and larger Save Our Homes protection gaps than inland ZIPs
+- Overdose rates declined across nearly all ZIP codes between 2021 and 2024
+- Rent burden shows a moderate positive correlation with overdose rates (r = 0.54), while investor ownership shows a weaker positive correlation (r = 0.26)
+- Council District 3 has the highest permit stall rate (43.1%), representing more than 394 stalled permits
+
+---
+
+## Dashboard Preview
+
+[View Dashboard Preview](docs/images/volusia-county-presentation.png)
 
 ---
 
@@ -63,15 +86,15 @@ This project integrates property assessment, permitting, demographic, and public
 └───────────────────────────┬─────────────────────────────────┘
                             │
                             ▼
-┌───────────────────────────────────────────────────────────────────┐
-│  ORCHESTRATION (GitHub Actions)                                   │
-│  Weekly cron → ingest → dbt run → dbt test → Data Studio refresh  │
-└───────────────────────────┬───────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  ORCHESTRATION (GitHub Actions)                             │
+│  Weekly cron → ingest → dbt run → dbt test                  │
+└───────────────────────────┬─────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  SERVING (Data Studio Service)                              │
-│  Public dashboard — ZIP-level housing pressure metrics      │
+│  SERVING                                                    │
+│  Static HTML dashboard — self-contained, repo-hosted        │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -92,33 +115,41 @@ This project integrates property assessment, permitting, demographic, and public
 
 **Geographic scope:** Volusia County, Florida. AMANDA permits cover unincorporated areas only — City of Daytona Beach is excluded.
 
-**CAMA data note:** The weekly CAMA download contains the current assessment year only (2026). Historical rolls (2020-2025) require a separate Florida DOR data request. See [Florida DOR Data Portal](https://floridarevenue.com/property/Pages/DataPortal_RequestAssessmentRollGISData.aspx).
+**CAMA data note:** The weekly CAMA download contains the current assessment year only (2026). Historical rolls (2020–2025) require a separate Florida DOR data request. See [Florida DOR Data Portal](https://floridarevenue.com/property/Pages/DataPortal_RequestAssessmentRollGISData.aspx).
 
 ---
 
 ## Repository Structure
+
 ```
 volusia-housing-pipeline/
 ├── ingestion/
-│   ├── config.py                  # DB settings, endpoints, pipeline constants
-│   ├── arcgis_client.py           # Paginated ArcGIS FeatureServer/MapServer client
-│   ├── ingest_tax_roll.py         # CAMA .accdb download → 5 PostgreSQL tables
-│   ├── ingest_permits.py          # AMANDA permits via ArcGIS (UPSERT on folderrsn)
-│   ├── ingest_census.py           # Census ACS 5-year via api.census.gov
-│   └── ingest_overdose.py         # VSO overdose analysis via ArcGIS
-├── volusia_housing/               # dbt project
+│   ├── config.py                      # DB settings, endpoints, pipeline constants
+│   ├── arcgis_client.py               # Paginated ArcGIS FeatureServer/MapServer client
+│   ├── ingest_tax_roll.py             # CAMA .accdb download → 5 PostgreSQL tables
+│   ├── ingest_permits.py              # AMANDA permits via ArcGIS (UPSERT on folderrsn)
+│   ├── ingest_census.py               # Census ACS 5-year via api.census.gov
+│   └── ingest_overdose.py             # VSO overdose analysis via ArcGIS
+├── volusia_housing/                   # dbt project
 │   ├── dbt_project.yml
 │   ├── macros/
 │   │   └── generate_schema_name.sql   # Prevents schema prefix doubling
 │   ├── seeds/
-│   │   └── permit_types.csv       # Permit type lookup
+│   │   └── permit_types.csv           # Permit type lookup
 │   └── models/
 │       ├── staging/
 │       ├── intermediate/
 │       └── marts/
+├── dashboard/                         # Static HTML dashboard
+│   ├── index.html
+│   ├── styles.css
+│   ├── app.js
+│   └── data/
+│       ├── mart_housing_pressure.csv  # Exported from Supabase — public data
+│       └── mart_permit_velocity.csv
 └── .github/
     └── workflows/
-        └── pipeline.yml           # Weekly CI/CD
+        └── pipeline.yml               # Weekly CI/CD
 ```
 
 ---
@@ -136,7 +167,7 @@ volusia-housing-pipeline/
 ### Installation
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/volusia-housing-pipeline
+git clone https://github.com/wilsonz347/volusia-housing-pipeline
 cd volusia-housing-pipeline
 
 python3 -m venv venv
@@ -201,10 +232,10 @@ python ingest_census.py --dry-run
 python ingest_overdose.py --dry-run
 
 # Live loads
-python ingest_tax_roll.py        # ~15 min — downloads 230MB CAMA file
-python ingest_permits.py         # ~30 sec
-python ingest_census.py          # ~5 sec
-python ingest_overdose.py        # ~5 sec
+python ingest_tax_roll.py       
+python ingest_permits.py        
+python ingest_census.py         
+python ingest_overdose.py      
 ```
 
 ---
@@ -217,18 +248,14 @@ dbt models are organized in three layers:
 
 **Intermediate** (`models/intermediate/`) — cross-source joins and derived fields. Key models:
 
-- `int_owner_classification` — classifies each parcel owner as `owner_occupied`, `out_of_state_investor`, `foreign_investor`, `corporate_investor_fl`, `trust`, `local_investor_individual`, or `unclassified`. Uses homestead flag, mailing state parsed from `addr3`, and LLC keyword matching on owner name.
-
+- `int_owner_classification` — classifies each parcel as `owner_occupied`, `out_of_state_investor`, `foreign_investor`, `corporate_investor_fl`, `trust`, `local_investor_individual`, or `unclassified`. Uses homestead flag, mailing state parsed from `addr3`, and LLC keyword matching on owner name.
 - `int_value_trends` — computes SOH differential (just value minus assessed value) per parcel. Quantifies displacement risk for long-term homeowners.
+- `int_overdose_by_zip` — joins overdose incident data with ACS demographic data at ZIP level. Adds population-normalized rates and socioeconomic context for housing-health correlation analysis.
 
-- `int_overdose_by_zip` — joins overdose incident data with ACS demographic data at the ZIP code level. Adds population-normalized metrics including `overdose_rate_per_1000` and `opioid_rate_per_1000`, along with socioeconomic context such as median household income, renter occupancy ratio, and rent burden. Serves as the analytical foundation for examining relationships between housing conditions, investor activity, and overdose prevalence.
+**Marts** (`models/marts/`) — final analytical outputs. Materialized as tables.
 
-**Marts** (`models/marts/`) — final analytical outputs consumed by Data Studio. Materialized as tables.
-
-- `mart_housing_pressure` — by ZIP: investor ownership %, SOH differential, median just value, permit activity rate, overdose rate, Census income/rent context.
-- `mart_permit_velocity` — by neighborhood: median permit approval time, permit type breakdown.
-
-Run dbt:
+- `mart_housing_pressure` — one row per ZIP: investor ownership %, SOH differential, median appraised value, overdose rate, Census income/rent context.
+- `mart_permit_velocity` — one row per council district: permit volume, type breakdown, stall rate, median permit age.
 
 ```bash
 cd volusia_housing
@@ -243,10 +270,10 @@ dbt docs serve    # view in browser
 
 ## Orchestration
 
-GitHub Actions runs the full pipeline on a weekly cron schedule every Monday at 06:00 UTC.
+GitHub Actions runs the full pipeline weekly every Monday at 06:00 UTC.
 
 ```
-ingest (all four scripts) → dbt run → dbt test → Data Studio dataset refresh
+ingest (all four scripts) → dbt run → dbt test
 ```
 
 **GitHub Secrets required:**
@@ -257,14 +284,51 @@ DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, CENSUS_API_KEY
 
 ---
 
+## Presentation
+
+A static HTML dashboard is included in `dashboard/` and consumes the two mart CSVs directly. It is a read-only presentation layer — no business logic is reimplemented here; all classification and aggregation lives in dbt.
+
+> **Note:** The dashboard template was AI-assisted.
+
+### Running locally
+
+```bash
+cd dashboard
+python3 -m http.server 8000
+# Open http://localhost:8000
+```
+
+### Updating data
+
+Export both marts from Supabase and replace the files in `dashboard/data/`:
+
+```
+dashboard/data/mart_housing_pressure.csv
+dashboard/data/mart_permit_velocity.csv
+```
+
+### Views
+
+| Tab | Source | Description |
+|---|---|---|
+| Executive View | mart_housing_pressure | KPIs, pressure leaderboard, portfolio mix |
+| Investor Concentration | mart_housing_pressure | Ownership breakdown by type and ZIP |
+| Housing Pressure | mart_housing_pressure | Composite pressure scores, ZIP table |
+| SOH Protection | mart_housing_pressure | Save Our Homes differential rankings |
+| Housing + Overdose | mart_housing_pressure | Pressure-to-overdose scatter, health trends |
+| Development Activity | mart_permit_velocity | Permit volume and stall rate by district |
+| Engineering Proof | — | dbt lineage summary, data contract, limitations |
+
+---
+
 ## Known Limitations
 
-**CAMA is current-year only.** The weekly download contains 2026 assessment data only. Multi-year trend analysis requires historical rolls from the Florida DOR data portal (free request, ~3 business days turnaround).
+**CAMA is current-year only.** Multi-year trend analysis requires historical rolls from the Florida DOR data portal (free request, ~3 business days).
 
-**AMANDA permits exclude incorporated cities.** The permits layer covers unincorporated Volusia County, Deltona, DeBary, and Pierson. City of Daytona Beach, Ormond Beach, and other municipalities issue permits through separate systems not included here.
+**AMANDA permits exclude incorporated cities.** Daytona Beach, Ormond Beach, and other municipalities issue permits through separate systems not included here.
 
-**Owner classification is probabilistic.** The `int_owner_classification` model derives investor status from observable signals — homestead flag, mailing state, entity name patterns. Some seasonal residents are misclassified as out-of-state investors. Coastal ZIPs (32118, 32127) are particularly affected. Low-confidence classifications are excluded from headline metrics.
+**Owner classification is probabilistic.** Some seasonal residents are misclassified as out-of-state investors, particularly in coastal ZIPs (32118, 32127). Low-confidence classifications are excluded from headline metrics.
 
-**Mailing state requires parsing.** CAMA `addr3` stores city and state as free text (`"DAYTONA BEACH FL"`). State extraction uses string splitting — edge cases exist for non-standard formats and foreign addresses.
+**Census ACS is a 5-year average.** The 2024 release covers 2020–2024 and should be treated as structural neighborhood context, not current-year data.
 
-**Census ACS is a 5-year average.** The 2024 ACS release covers 2020-2024. It does not reflect 2025-2026 conditions and should be treated as structural neighborhood context rather than current-year data.
+**Pressure score is relative, not absolute.** The composite score is min-max normalized within the visible ZIP set. It reflects relative pressure within the current view and shifts when filters are applied.
