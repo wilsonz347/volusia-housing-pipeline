@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Volusia Housing Pipeline | Investor Pressure Command Center</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand-block">
+        <p class="eyebrow">Supabase PostgreSQL • dbt marts • public decision layer</p>
+        <h1>Volusia Investor Ownership Pressure Command Center</h1>
+        <p class="subtitle">Production dbt marts analyzing investor ownership, housing pressure, SOH protection, overdose trends, and permit activity by ZIP/district.</p>
+      </div>
+      <div class="header-actions">
+        <button class="icon-button" id="exportSummary" title="Export the current filtered executive summary">Export summary</button>
+        <a class="repo-button" href="data/mart_housing_pressure.csv" download>Housing mart</a>
+        <a class="repo-button" href="data/mart_permit_velocity.csv" download>Permit mart</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="control-strip" aria-label="Dashboard filters">
+        <label>
+          ZIP search
+          <input id="zipSearch" type="search" placeholder="Search ZIP">
+        </label>
+        <label>
+          Rank metric
+          <select id="metricSelect">
+            <option value="pressure_score">Housing pressure score</option>
+            <option value="all_investor_pct">All investor %</option>
+            <option value="high_conf_investor_pct">High-confidence investor %</option>
+            <option value="median_soh_differential">Median SOH differential</option>
+            <option value="rent_to_income_ratio">Rent-to-income ratio</option>
+            <option value="overdose_rate_2024">2024 overdose rate</option>
+            <option value="owner_occupied_pct">Owner-occupied %</option>
+          </select>
+        </label>
+        <label>
+          Sort
+          <select id="sortMode">
+            <option value="desc">Highest first</option>
+            <option value="asc">Lowest first</option>
+          </select>
+        </label>
+        <label class="check">
+          <input id="acsOnly" type="checkbox">
+          ACS-backed ZIPs only
+        </label>
+      </section>
+
+      <section class="answer-grid" aria-label="Core analytical answer">
+        <article class="answer-card primary-answer">
+          <span>Core question</span>
+          <h2>Where is absentee investor ownership exerting measurable housing affordability pressure?</h2>
+          <p id="coreAnswer">Loading mart-driven answer...</p>
+        </article>
+        <article class="answer-card warning-answer">
+          <span>Acceleration caveat</span>
+          <h2>Trend status</h2>
+          <p>The current mart contains the 2026 tax roll only, so acceleration cannot be measured yet. This dashboard identifies current concentration and pressure hot spots; historical DOR rolls are required for true acceleration analysis.</p>
+        </article>
+      </section>
+
+      <section class="kpi-grid" id="kpiGrid" aria-label="Executive KPIs"></section>
+
+      <nav class="question-nav" aria-label="Analytical questions">
+        <button class="tab active" data-view="overview">Executive View</button>
+        <button class="tab" data-view="investors">Investor Concentration</button>
+        <button class="tab" data-view="pressure">Housing Pressure</button>
+        <button class="tab" data-view="soh">SOH Protection</button>
+        <button class="tab" data-view="health">Housing + Overdose</button>
+        <button class="tab" data-view="permits">Development Activity</button>
+        <button class="tab" data-view="engineering">Engineering Proof</button>
+      </nav>
+
+      <section class="view active" id="overview">
+        <section class="question-grid">
+          <article class="question-card">
+            <span>1</span>
+            <h3>Where is investor ownership concentrated?</h3>
+            <p id="investorAnswer"></p>
+          </article>
+          <article class="question-card">
+            <span>2</span>
+            <h3>Which ZIPs have highest housing pressure?</h3>
+            <p id="pressureAnswer"></p>
+          </article>
+          <article class="question-card">
+            <span>3</span>
+            <h3>Where is SOH protection largest?</h3>
+            <p id="sohAnswer"></p>
+          </article>
+          <article class="question-card">
+            <span>4</span>
+            <h3>How do housing metrics relate to overdose rates?</h3>
+            <p id="healthAnswer"></p>
+          </article>
+          <article class="question-card">
+            <span>5</span>
+            <h3>Where is development activity occurring?</h3>
+            <p id="permitAnswer"></p>
+          </article>
+        </section>
+
+                <div class="layout-two">
+          <article class="panel wide">
+            <div class="panel-head">
+              <div>
+                <h2>ZIP Pressure Leaderboard</h2>
+                <p>Composite score combines investor ownership, rent-to-income, renter share, vacancy, SOH protection, and inverse owner-occupancy.</p>
+              </div>
+              <span class="status-pill" id="zipCountPill">ZIPs</span>
+            </div>
+            <div id="rankChart" class="chart"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Portfolio Risk Mix</h2>
+                <p>Median profile across visible ZIPs.</p>
+              </div>
+            </div>
+            <div id="mixChart" class="donut-wrap"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" id="investors">
+        <div class="layout-two">
+          <article class="panel wide">
+            <div class="panel-head">
+              <div>
+                <h2>Absentee Investor Ownership Concentration</h2>
+                <p>High-confidence ownership includes foreign and out-of-state investors; all-investor exposure adds Florida corporate, trusts, and local investor classifications.</p>
+              </div>
+            </div>
+            <div id="investorChart" class="chart"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Investor Type Composition</h2>
+                <p>Visible parcel counts by dbt classification rule.</p>
+              </div>
+            </div>
+            <div id="compositionChart" class="stack-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" id="pressure">
+        <div class="layout-two">
+          <article class="panel wide">
+            <div class="panel-head">
+              <div>
+                <h2>Highest Housing Pressure ZIPs</h2>
+                <p>Pressure score highlights ZIPs where investor exposure overlaps with affordability and occupancy stress.</p>
+              </div>
+            </div>
+            <div id="pressureChart" class="chart"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Pressure Drivers</h2>
+                <p>Top ZIP contribution profile.</p>
+              </div>
+            </div>
+            <div id="driverPanel" class="stack-list"></div>
+          </article>
+        </div>
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>ZIP Intelligence Table</h2>
+              <p>Public mart fields prepared for stakeholder review, QA, and drill-down.</p>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table id="zipTable"></table>
+          </div>
+        </article>
+      </section>
+
+      <section class="view" id="soh">
+        <div class="layout-two">
+          <article class="panel wide">
+            <div class="panel-head">
+              <div>
+                <h2>Long-Term Resident SOH Protection</h2>
+                <p><code>just_value - assessed_value</code> indicates accumulated Save Our Homes protection and potential tax shock if ownership changes.</p>
+              </div>
+            </div>
+            <div id="sohChart" class="chart"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Large SOH Gap Share</h2>
+                <p>ZIPs with the largest share of parcels above the large-gap threshold.</p>
+              </div>
+            </div>
+            <div id="gapChart" class="mini-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" id="health">
+        <div class="layout-two">
+          <article class="panel wide">
+            <div class="panel-head">
+              <div>
+                <h2>Housing Pressure and Overdose Rates</h2>
+                <p>Descriptive relationship view using ZIP-level 2024 overdose rate and modeled housing metrics.</p>
+              </div>
+            </div>
+            <div id="scatterChart" class="scatter"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Public Health Context</h2>
+                <p>Overdose rate change from 2021 to 2024.</p>
+              </div>
+            </div>
+            <div id="healthList" class="mini-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" id="permits">
+        <div class="layout-two">
+          <article class="panel wide">
+            <div class="panel-head">
+              <div>
+                <h2>Development Activity by Council District</h2>
+                <p>Permit velocity for unincorporated Volusia County from <code>mart_permit_velocity</code>.</p>
+              </div>
+            </div>
+            <div id="permitChart" class="chart"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Permit Queue Health</h2>
+                <p>Status mix, stalled work, and median age indicators.</p>
+              </div>
+            </div>
+            <div id="permitStatus" class="stack-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" id="engineering">
+        <div class="lineage-grid">
+          <article class="panel engineering-card">
+            <h2>Analytical Contract</h2>
+            <ul class="quality-list">
+              <li><strong>mart_housing_pressure</strong><span>One ZIP row with investor, SOH, ACS, and overdose metrics</span></li>
+              <li><strong>mart_permit_velocity</strong><span>One council district row with permit throughput and queue metrics</span></li>
+              <li><strong>No dashboard logic duplication</strong><span>Business rules are surfaced from marts instead of recreated here</span></li>
+            </ul>
+          </article>
+          <article class="panel engineering-card">
+            <h2>dbt Transformation Evidence</h2>
+            <ul class="quality-list">
+              <li><strong>Staging</strong><span>Typed source-aligned CAMA, permits, ACS, and overdose models</span></li>
+              <li><strong>Intermediate</strong><span>Ownership classification, homestead, SOH, and aggregation logic</span></li>
+              <li><strong>Marts</strong><span>Dashboard-ready grains with testable contracts</span></li>
+            </ul>
+          </article>
+          <article class="panel engineering-card">
+            <h2>Limitations Disclosed</h2>
+            <ul class="quality-list">
+              <li><strong>Acceleration</strong><span>Requires 2020-2025 historical tax rolls</span></li>
+              <li><strong>Permits</strong><span>Unincorporated county only</span></li>
+              <li><strong>ACS</strong><span>2024 5-year estimates, not point-in-time current-year values</span></li>
+            </ul>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <div id="tooltip" class="tooltip" hidden></div>
+    <script src="app.js"></script>
+  </body>
+</html>
