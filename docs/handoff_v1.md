@@ -36,7 +36,7 @@ The project produces production-ready analytics tables that support a public-fac
 ## In Progress
 
 - Dashboard development
-- Dashboard platform implementation (currently Looker Studio)
+- Dashboard platform implementation
 
 ## Remaining
 
@@ -53,7 +53,6 @@ The project produces production-ready analytics tables that support a public-fac
 - PostgreSQL (Supabase)
 - dbt Core 1.12
 - GitHub Actions
-- Looker Studio
 
 ## Architecture
 
